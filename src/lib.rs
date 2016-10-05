@@ -79,7 +79,6 @@ impl GlutinWindow {
     /// Creates a new game window for Glutin.
     pub fn new(settings: &WindowSettings) -> Result<Self, String> {
         use std::error::Error;
-        use glutin::ContextError;
 
         let title = settings.get_title();
         let exit_on_esc = settings.get_exit_on_esc();
@@ -92,20 +91,8 @@ impl GlutinWindow {
                     )
                 }
             };
-        unsafe { try!(window.make_current().map_err(|e|
-                // This can be simplified in next version of Glutin.
-                match e {
-                    ContextError::IoError(ref err) => {
-                        String::from(err.description())
-                    }
-                    ContextError::ContextLost => {
-                        String::from("Context lost")
-                    }
-                }
-            )); }
-
-        // Load the OpenGL function pointers.
-        gl::load_with(|s| window.get_proc_address(s) as *const _);
+        
+        try!(GlutinWindow::make_current(&window));
 
         Ok(GlutinWindow {
             window: window,
@@ -118,6 +105,49 @@ impl GlutinWindow {
             last_cursor_pos: None,
             mouse_relative: None,
         })
+    }
+
+    /// Creates a game window from an existing Glutin window
+    pub fn from_existing(window: glutin::Window, title: &str, exit_on_esc: bool) -> Result<Self, String> {
+        window.set_title(title);
+        
+        try!(GlutinWindow::make_current(&window));
+
+        Ok(GlutinWindow {
+            window: window,
+            title: title.into(),
+            exit_on_esc: exit_on_esc,
+            should_close: false,
+            has_cursor: true,
+            cursor_pos: None,
+            is_capturing_cursor: false,
+            last_cursor_pos: None,
+            mouse_relative: None,
+        })
+    }
+
+    fn make_current(window: &glutin::Window) -> Result<(), String> {
+        use std::error::Error;
+        use glutin::ContextError;
+
+        unsafe {
+            try!(window.make_current().map_err(|e|
+                // This can be simplified in next version of Glutin.
+                match e {
+                    ContextError::IoError(ref err) => {
+                        String::from(err.description())
+                    }
+                    ContextError::ContextLost => {
+                        String::from("Context lost")
+                    }
+                }
+            ));
+        }
+
+        // Load the OpenGL function pointers.
+        gl::load_with(|s| window.get_proc_address(s) as *const _);
+
+        Ok(())
     }
 
     /// Wait for an event to be received by the window.
